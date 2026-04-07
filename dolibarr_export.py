@@ -239,13 +239,17 @@ def main(page: ft.Page):
         page.update()
 
     # ── Logo ──────────────────────────────────────────────────────────────────
-    try:
-        logo = ft.Image(src=LOGO_URL, height=38, fit=ft.ImageFit.CONTAIN)
-    except Exception:
-        logo = ft.Text("AutomaWorks", size=18, weight=ft.FontWeight.BOLD, color=ACCENT)
+    logo = ft.Image(
+        src=LOGO_URL,
+        height=38,
+        fit="contain",
+        error_content=ft.Text(
+            "AutomaWorks", size=18, weight=ft.FontWeight.BOLD, color=ACCENT
+        ),
+    )
 
     header = ft.Container(
-        content=ft.Row([logo], alignment=ft.MainAxisAlignment.CENTER),
+        content=ft.Row([logo], alignment=ft.MainAxisAlignment.START),
         bgcolor=BG_HEADER,
         padding=ft.padding.symmetric(vertical=14, horizontal=20),
         border=ft.border.only(bottom=ft.BorderSide(1, BORDER)),
@@ -409,4 +413,5 @@ def main(page: ft.Page):
     )
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    assets = os.path.dirname(os.path.abspath(__file__))
+    ft.app(target=main, assets_dir=assets)
