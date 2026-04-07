@@ -1,0 +1,20 @@
+[project]
+name = "dolibarrfacturacion"
+version = "0.1.0"
+dependencies = [
+  "flet",
+  "requests",
+  "openpyxl",
+]
+
+[tool.flet]
+product = "Dolibarr Facturación"
+company = "AutomaWorks"
+
+[tool.flet.app]
+path = "."
+module = "main.py"
+
+[tool.flet.macos]
+org = "es.automaworks"
+artifact = "Dolibarr Facturación"

@@ -20,3 +20,10 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+DS_Store
+# Visual Studio Code settings
+.settings/
+*.build/
+.dist/
+build/
+.DS_Store

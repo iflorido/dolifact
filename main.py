@@ -26,7 +26,7 @@ BORDER    = "#e2e8f0"
 RADIUS    = 10
 BG_HEADER = "#0f1d2e"
 
-LOGO_URL  = "https://automaworks.es/automaworks.png"
+LOGO_URL  = "automaworks_logo.png"
 WEB_URL   = "https://automaworks.es"
 EMAIL     = "iflorido@gmail.com"
 
@@ -254,7 +254,7 @@ def build_excel(invoices: list, base_url: str, api_key: str,
 def main(page: ft.Page):
     page.title       = "Dolibarr · Facturación Excel"
     page.window.width  = 720
-    page.window.height = 660
+    page.window.height = 700
     page.window.resizable = False
     page.bgcolor     = BG
     page.padding     = 0
@@ -340,6 +340,7 @@ def main(page: ft.Page):
         page.update()
 
     # ── Logo ──────────────────────────────────────────────────────────────────
+    # ── Logo ──────────────────────────────────────────────────────────────────
     logo = ft.Image(
         src=LOGO_URL,
         height=38,
@@ -350,7 +351,27 @@ def main(page: ft.Page):
     )
 
     header = ft.Container(
-        content=ft.Row([logo], alignment=ft.MainAxisAlignment.START),
+        content=ft.Row(
+            [
+                logo,
+                ft.Container(expand=True),
+                ft.TextButton(
+                    content=ft.Text(
+                        "Desarrollado por cv.iflorido.es",
+                        size=12,
+                        color=ACCENT_DIM,
+                        weight=ft.FontWeight.W_500,
+                    ),
+                    url="https://cv.iflorido.es",
+                    style=ft.ButtonStyle(
+                        padding=ft.padding.all(0),
+                        overlay_color="transparent",
+                    ),
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
         bgcolor=BG_HEADER,
         padding=ft.padding.symmetric(vertical=14, horizontal=20),
         border=ft.border.only(bottom=ft.BorderSide(1, BORDER)),
@@ -551,7 +572,9 @@ def main(page: ft.Page):
             expand=True,
         )
     )
-
-if __name__ == "__main__":
-    assets = os.path.dirname(os.path.abspath(__file__))
-    ft.app(target=main, assets_dir=assets)
+# Para ejecución local (assets en mismo directorio)
+#   if __name__ == "__main__":
+#       assets = os.path.dirname(os.path.abspath(__file__))
+#       ft.app(target=main, assets_dir=assets)
+    
+ft.app(target=main)
