@@ -23,8 +23,9 @@ ACCENT    = "#0891b2"
 ACCENT_DIM= "#e0f2f7"
 BORDER    = "#e2e8f0"
 RADIUS    = 10
+BG_HEADER = "#0f1d2e"
 
-LOGO_URL  = "https://automaworks.es/automaworks.png"
+LOGO_URL  = "automaworks_logo.png"
 WEB_URL   = "https://automaworks.es"
 EMAIL     = "iflorido@gmail.com"
 
@@ -219,7 +220,7 @@ def build_excel(invoices: list, base_url: str, api_key: str,
 
 def main(page: ft.Page):
     page.title       = "Dolibarr · Facturación Excel"
-    page.window.width  = 480
+    page.window.width  = 680
     page.window.height = 560
     page.window.resizable = False
     page.bgcolor     = BG
@@ -245,7 +246,7 @@ def main(page: ft.Page):
 
     header = ft.Container(
         content=ft.Row([logo], alignment=ft.MainAxisAlignment.CENTER),
-        bgcolor=BG2,
+        bgcolor=BG_HEADER,
         padding=ft.padding.symmetric(vertical=14, horizontal=20),
         border=ft.border.only(bottom=ft.BorderSide(1, BORDER)),
     )
@@ -329,15 +330,21 @@ def main(page: ft.Page):
             page.update()
 
     btn_generate = ft.ElevatedButton(
-        text="Generar Excel",
-        icon=ft.Icons.TABLE_CHART_OUTLINED,
+        content=ft.Row(
+            [
+                ft.Icon(ft.Icons.TABLE_CHART_OUTLINED, color="#ffffff", size=18),
+                ft.Text("Generar Excel", color="#ffffff", size=13,
+                        weight=ft.FontWeight.W_600),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=8,
+            tight=True,
+        ),
         on_click=on_generate,
         bgcolor=ACCENT,
-        color="#ffffff",
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=RADIUS),
             padding=ft.padding.symmetric(vertical=12, horizontal=20),
-            text_style=ft.TextStyle(size=13, weight=ft.FontWeight.W_600),
         ),
         width=220,
     )
@@ -373,23 +380,15 @@ def main(page: ft.Page):
             [
                 ft.Text("© AutomaWorks · ", size=10, color=TEXT2),
                 ft.TextButton(
-                    text=WEB_URL,
+                    content=ft.Text(WEB_URL, size=10, color=ACCENT),
                     url=WEB_URL,
-                    style=ft.ButtonStyle(
-                        color=ACCENT,
-                        padding=ft.padding.all(0),
-                        text_style=ft.TextStyle(size=10),
-                    ),
+                    style=ft.ButtonStyle(padding=ft.padding.all(0)),
                 ),
                 ft.Text("  ·  ", size=10, color=TEXT2),
                 ft.TextButton(
-                    text=EMAIL,
+                    content=ft.Text(EMAIL, size=10, color=ACCENT),
                     url=f"mailto:{EMAIL}",
-                    style=ft.ButtonStyle(
-                        color=ACCENT,
-                        padding=ft.padding.all(0),
-                        text_style=ft.TextStyle(size=10),
-                    ),
+                    style=ft.ButtonStyle(padding=ft.padding.all(0)),
                 ),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
