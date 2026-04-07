@@ -13,6 +13,7 @@ import urllib.request
 import io
 import os
 import tempfile
+import threading
 
 # ── Paleta AutomaWorks Light ──────────────────────────────────────────────────
 BG        = "#f5f7fb"
@@ -100,7 +101,8 @@ def get_third_party(base_url: str, api_key: str, thirdparty_id: int) -> dict:
 
 
 def build_excel(invoices: list, base_url: str, api_key: str,
-                date_from: datetime, date_to: datetime) -> bytes:
+                date_from: datetime, date_to: datetime,
+                tp_cache_extern: dict | None = None) -> bytes:
     """Construye el Excel y devuelve los bytes."""
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -147,7 +149,7 @@ def build_excel(invoices: list, base_url: str, api_key: str,
     ws.row_dimensions[row3].height = 22
 
     # Datos
-    thirdparty_cache: dict[int, dict] = {}
+    thirdparty_cache: dict[int, dict] = dict(tp_cache_extern) if tp_cache_extern else {}
     row_num = row3 + 1
     total_base = total_iva = total_total = 0.0
 
@@ -251,22 +253,90 @@ def build_excel(invoices: list, base_url: str, api_key: str,
 
 def main(page: ft.Page):
     page.title       = "Dolibarr · Facturación Excel"
-    page.window.width  = 680
-    page.window.height = 560
+    page.window.width  = 720
+    page.window.height = 660
     page.window.resizable = False
     page.bgcolor     = BG
     page.padding     = 0
     page.fonts       = {}
     page.theme_mode  = ft.ThemeMode.LIGHT
 
-    # ── Estado ────────────────────────────────────────────────────────────────
-    status_text = ft.Text("", size=12, color=TEXT2, text_align=ft.TextAlign.CENTER)
-    progress    = ft.ProgressBar(visible=False, color=ACCENT, bgcolor=ACCENT_DIM)
+    # ── Panel de progreso por pasos ──────────────────────────────────────────
+    PASOS = [
+        "Conectando con Dolibarr",
+        "Descargando facturas",
+        "Obteniendo datos de empresas",
+        "Generando Excel",
+        "Guardando archivo",
+    ]
 
-    def show_status(msg: str, color: str = TEXT2, loading: bool = False):
-        status_text.value   = msg
-        status_text.color   = color
-        progress.visible    = loading
+    # Estado de cada paso: "wait" | "run" | "ok" | "err"
+    paso_estado = ["wait"] * len(PASOS)
+
+    def _icono_paso(estado: str) -> ft.Control:
+        if estado == "ok":
+            return ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color="#059669", size=18)
+        if estado == "err":
+            return ft.Icon(ft.Icons.CANCEL_ROUNDED, color="#e11d48", size=18)
+        if estado == "run":
+            return ft.ProgressRing(width=16, height=16, stroke_width=2, color=ACCENT)
+        # wait
+        return ft.Icon(ft.Icons.RADIO_BUTTON_UNCHECKED, color=BORDER, size=18)
+
+    paso_rows = []
+    for label in PASOS:
+        paso_rows.append(
+            ft.Row(
+                [_icono_paso("wait"), ft.Text(label, size=12, color=TEXT2)],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        )
+
+    progress_panel = ft.Container(
+        visible=False,
+        bgcolor=BG2,
+        border=ft.border.all(1, BORDER),
+        border_radius=RADIUS,
+        padding=ft.padding.symmetric(horizontal=16, vertical=12),
+        content=ft.Column(
+            controls=[
+                ft.Text("Procesando…", size=12, weight=ft.FontWeight.W_600, color=TEXT),
+                ft.Divider(height=6, color="transparent"),
+                *paso_rows,
+            ],
+            spacing=8,
+        ),
+    )
+
+    status_text = ft.Text("", size=12, color=TEXT2, text_align=ft.TextAlign.CENTER)
+
+    def _set_paso(idx: int, estado: str):
+        """Actualiza el icono y color de texto de un paso."""
+        paso_estado[idx] = estado
+        row = paso_rows[idx]
+        row.controls[0] = _icono_paso(estado)
+        row.controls[1].color = (
+            TEXT      if estado == "ok"  else
+            "#e11d48" if estado == "err" else
+            ACCENT    if estado == "run" else
+            TEXT2
+        )
+        row.controls[1].weight = (
+            ft.FontWeight.W_600 if estado in ("run", "ok") else ft.FontWeight.W_400
+        )
+        page.update()
+
+    def _reset_pasos():
+        for i in range(len(PASOS)):
+            _set_paso(i, "wait")
+        progress_panel.visible = False
+        status_text.value = ""
+        page.update()
+
+    def show_status(msg: str, color: str = TEXT2):
+        status_text.value  = msg
+        status_text.color  = color
         page.update()
 
     # ── Logo ──────────────────────────────────────────────────────────────────
@@ -334,35 +404,74 @@ def main(page: ft.Page):
             show_status("⚠️  La fecha final debe ser posterior a la inicial.", "#e11d48")
             return
 
+        # Prepara UI antes de lanzar hilo
         btn_generate.disabled = True
-        show_status("Consultando facturas en Dolibarr…", TEXT2, loading=True)
+        status_text.value = ""
+        for i in range(len(PASOS)):
+            paso_estado[i] = "wait"
+            paso_rows[i].controls[0] = _icono_paso("wait")
+            paso_rows[i].controls[1].color  = TEXT2
+            paso_rows[i].controls[1].weight = ft.FontWeight.W_400
+        progress_panel.visible = True
+        page.update()
 
-        try:
-            invoices = fetch_invoices(url_val, key_val, d_from, d_to)
-            if not invoices:
-                show_status("ℹ️  No se encontraron facturas en ese rango.", TEXT2)
+        def _worker():
+            try:
+                # Paso 0 — Conectando
+                _set_paso(0, "run")
+                invoices = fetch_invoices(url_val, key_val, d_from, d_to)
+                _set_paso(0, "ok")
+
+                # Paso 1 — Facturas recibidas
+                _set_paso(1, "ok")
+
+                if not invoices:
+                    _set_paso(1, "err")
+                    progress_panel.visible = False
+                    show_status("ℹ️  No se encontraron facturas en ese rango.", TEXT2)
+                    btn_generate.disabled = False
+                    page.update()
+                    return
+
+                # Paso 2 — Datos de empresas
+                _set_paso(2, "run")
+                tp_cache: dict = {}
+                tp_ids = list({int(inv.get("socid") or 0)
+                               for inv in invoices if inv.get("socid")})
+                for tp_id in tp_ids:
+                    if tp_id and tp_id not in tp_cache:
+                        tp_cache[tp_id] = get_third_party(url_val, key_val, tp_id)
+                _set_paso(2, "ok")
+
+                # Paso 3 — Generando Excel
+                _set_paso(3, "run")
+                excel_bytes = build_excel(invoices, url_val, key_val, d_from, d_to,
+                                          tp_cache_extern=tp_cache)
+                _set_paso(3, "ok")
+
+                # Paso 4 — Guardando
+                _set_paso(4, "run")
+                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+                os.makedirs(desktop, exist_ok=True)
+                fname = (f"facturacion_{d_from.strftime('%Y%m%d')}"
+                         f"_{d_to.strftime('%Y%m%d')}.xlsx")
+                fpath = os.path.join(desktop, fname)
+                with open(fpath, "wb") as f:
+                    f.write(excel_bytes)
+                _set_paso(4, "ok")
+
+                show_status(f"✅  Excel guardado en Escritorio: {fname}", "#059669")
+
+            except Exception as ex:
+                for i, est in enumerate(paso_estado):
+                    if est == "run":
+                        _set_paso(i, "err")
+                show_status(f"❌  {ex}", "#e11d48")
+            finally:
                 btn_generate.disabled = False
                 page.update()
-                return
 
-            show_status(f"Generando Excel con {len(invoices)} facturas…", TEXT2, loading=True)
-            excel_bytes = build_excel(invoices, url_val, key_val, d_from, d_to)
-
-            # Guardar en Escritorio del usuario
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            os.makedirs(desktop, exist_ok=True)
-            fname = f"facturacion_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
-            fpath = os.path.join(desktop, fname)
-            with open(fpath, "wb") as f:
-                f.write(excel_bytes)
-
-            show_status(f"✅  Excel guardado en Escritorio:\n{fname}", "#059669")
-        except Exception as ex:
-            show_status(f"❌  {ex}", "#e11d48")
-        finally:
-            btn_generate.disabled = False
-            progress.visible = False
-            page.update()
+        threading.Thread(target=_worker, daemon=True).start()
 
     btn_generate = ft.ElevatedButton(
         content=ft.Row(
@@ -398,7 +507,7 @@ def main(page: ft.Page):
                 ft.Row([tf_from, tf_to], spacing=10),
                 ft.Divider(height=2, color="transparent"),
                 ft.Row([btn_generate], alignment=ft.MainAxisAlignment.CENTER),
-                progress,
+                progress_panel,
                 status_text,
             ],
             spacing=10,
