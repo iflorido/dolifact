@@ -25,7 +25,7 @@ BORDER    = "#e2e8f0"
 RADIUS    = 10
 BG_HEADER = "#0f1d2e"
 
-LOGO_URL  = "automaworks_logo.png"
+LOGO_URL  = "https://automaworks.es/automaworks.png"
 WEB_URL   = "https://automaworks.es"
 EMAIL     = "iflorido@gmail.com"
 
@@ -114,8 +114,8 @@ def build_excel(invoices: list, base_url: str, api_key: str,
     thin        = Side(style="thin", color="CBD5E1")
     border      = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    # Título
-    ws.merge_cells("A1:G1")
+    # Título — 8 columnas (A→H), merge solo una vez
+    ws.merge_cells("A1:H1")
     title_cell = ws["A1"]
     title_cell.value = (
         f"Facturación  {date_from.strftime('%d/%m/%Y')} → {date_to.strftime('%d/%m/%Y')}"
@@ -125,7 +125,7 @@ def build_excel(invoices: list, base_url: str, api_key: str,
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 28
 
-    ws.merge_cells("A2:G2")
+    ws.merge_cells("A2:H2")
     sub_cell = ws["A2"]
     sub_cell.value = f"Generado por AutomaWorks — {WEB_URL}"
     sub_cell.font  = Font(name="Calibri", size=9, color="4B5C78", italic=True)
@@ -136,9 +136,6 @@ def build_excel(invoices: list, base_url: str, api_key: str,
         "Fecha Factura", "Nº Factura", "Empresa",
         "CIF", "Dirección", "Base (€)", "IVA (€)", "Total (€)"
     ]
-    # Ajustamos merge al rango real (8 columnas)
-    ws.merge_cells("A1:H1")
-    ws.merge_cells("A2:H2")
 
     row3 = 3
     for col, h in enumerate(headers, 1):
