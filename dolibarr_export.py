@@ -39,33 +39,50 @@ def parse_date(s: str) -> datetime | None:
         return None
 
 def fetch_invoices(base_url: str, api_key: str, date_from: datetime, date_to: datetime):
-    """Obtiene facturas de Dolibarr en el rango indicado."""
+    """
+    Obtiene facturas de Dolibarr paginando de 100 en 100 y filtrando
+    por fecha localmente (sqlfilters no funciona en todas las versiones).
+    """
     url = base_url.rstrip("/") + "/api/index.php/invoices"
-    headers = {"DOLAPIKEY": api_key, "Accept": "application/json"}
+    headers = {"Accept": "application/json"}
 
-    ts_from = int(date_from.timestamp())
+    ts_from = int(date_from.replace(hour=0,  minute=0,  second=0).timestamp())
     ts_to   = int(date_to.replace(hour=23, minute=59, second=59).timestamp())
 
-    params = {
-        "limit": 500,
-        "page":  0,
-        "sqlfilters": f"(t.date_lim_reglement:>=:{ts_from}) and (t.date_lim_reglement:<=:{ts_to})",
-    }
-
-    # Intentamos filtrar por fecha de factura directamente
-    params_date = {
-        "limit": 500,
-        "page":  0,
-        "sqlfilters": f"(t.datef:>=:{ts_from}) and (t.datef:<=:{ts_to})",
-    }
+    all_invoices = []
+    page = 0
+    page_size = 100
 
     try:
-        r = requests.get(url, headers=headers, params=params_date, timeout=15)
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, list):
-            return data
-        return []
+        while True:
+            params = {
+                "DOLAPIKEY": api_key,
+                "limit": page_size,
+                "page":  page,
+                "sortfield": "t.datef",
+                "sortorder": "DESC",
+            }
+            r = requests.get(url, headers=headers, params=params, timeout=20)
+            r.raise_for_status()
+            data = r.json()
+
+            if not isinstance(data, list) or len(data) == 0:
+                break  # sin más páginas
+
+            for inv in data:
+                ts = int(inv.get("date") or inv.get("datef") or 0)
+                if ts_from <= ts <= ts_to:
+                    all_invoices.append(inv)
+                elif ts < ts_from:
+                    # Ordenadas DESC: en cuanto pasemos el límite inferior, paramos
+                    return all_invoices
+
+            if len(data) < page_size:
+                break  # última página
+            page += 1
+
+        return all_invoices
+
     except Exception as e:
         raise RuntimeError(f"Error al conectar con Dolibarr: {e}")
 
@@ -73,9 +90,9 @@ def fetch_invoices(base_url: str, api_key: str, date_from: datetime, date_to: da
 def get_third_party(base_url: str, api_key: str, thirdparty_id: int) -> dict:
     """Obtiene datos del tercero (empresa/cliente)."""
     url = base_url.rstrip("/") + f"/api/index.php/thirdparties/{thirdparty_id}"
-    headers = {"DOLAPIKEY": api_key, "Accept": "application/json"}
+    headers = {"Accept": "application/json"}
     try:
-        r = requests.get(url, headers=headers, timeout=10)
+        r = requests.get(url, headers=headers, params={"DOLAPIKEY": api_key}, timeout=10)
         r.raise_for_status()
         return r.json()
     except Exception:
