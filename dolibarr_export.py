@@ -157,7 +157,14 @@ def build_excel(invoices: list, base_url: str, api_key: str,
     for inv in invoices:
         tp_id = inv.get("socid") or inv.get("thirdparty_id") or 0
         if tp_id and tp_id not in thirdparty_cache:
-            thirdparty_cache[tp_id] = get_third_party(base_url, api_key, int(tp_id))
+            tp_data = get_third_party(base_url, api_key, int(tp_id))
+            thirdparty_cache[tp_id] = tp_data
+            # Diagnóstico: muestra campos del primer tercero en consola
+            if len(thirdparty_cache) == 1:
+                campos_cif = {k: v for k, v in tp_data.items()
+                              if any(x in k.lower() for x in
+                                     ["idprof","siren","siret","tva","cif","nif","vat","tax"])}
+                print(f"[DEBUG] Campos CIF del primer tercero ({tp_data.get('name','?')}): {campos_cif}")
         tp = thirdparty_cache.get(tp_id, {})
 
         # Fecha
@@ -169,7 +176,17 @@ def build_excel(invoices: list, base_url: str, api_key: str,
 
         numero   = inv.get("ref", "")
         empresa  = tp.get("name", inv.get("socnom", ""))
-        cif      = tp.get("idprof2", tp.get("siren", ""))
+        # CIF/NIF: Dolibarr España usa idprof1. Probamos todos los campos posibles.
+        cif = (
+            tp.get("idprof1") or
+            tp.get("idprof2") or
+            tp.get("idprof3") or
+            tp.get("idprof4") or
+            tp.get("tva_intra") or
+            tp.get("siren") or
+            tp.get("siret") or
+            ""
+        )
         ciudad   = tp.get("town", "")
         cp       = tp.get("zip", "")
         pais     = tp.get("country", {}).get("label", "") if isinstance(tp.get("country"), dict) else ""
